@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json, os
-import plotly.express as px
+import plotly.graph_objects as go
 
 # ── RUTAS ───────────────────────────────────────────────────────────────────────
 BASE_DIR      = os.path.dirname(__file__)
@@ -25,51 +25,98 @@ st.title("📈 Dashboard de Series Agropecuarias")
 
 # ── SIDEBAR ────────────────────────────────────────────────────────────────────
 st.sidebar.header("Controles")
-serie_sel   = st.sidebar.selectbox("Selecciona serie (Forecast + Modelo):", series_list)
+
+# 1) Serie & Modelo
+serie_sel   = st.sidebar.selectbox("Serie (Forecast + Modelo):", series_list)
 modelo_info = dict_modelos[serie_sel]
+
+# 2) IRF (podrías filtrar por variables de modelo si dict_modelos lo permite)
 irf_files   = sorted([f for f in os.listdir(IRF_DIR) if f.lower().endswith((".png", ".jpg"))])
-irf_sel     = st.sidebar.selectbox("Selecciona IRF:", irf_files)
+irf_sel     = st.sidebar.selectbox("Función Impulso-Respuesta:", irf_files)
+
+# 3) Rango de fechas para forecast
+# (más tarde inicializaremos con los límites reales del DF)
+date_range = st.sidebar.date_input("Rango de fechas:", [])
 
 # ── PÁGINA PRINCIPAL ────────────────────────────────────────────────────────────
-# (A) Mostrar IRF
-st.subheader("Función Impulso-Respuesta")
+
+# (A) IRF
+st.subheader("📷 Función Impulso-Respuesta")
 irf_path = os.path.join(IRF_DIR, irf_sel)
 st.image(irf_path, caption=irf_sel, use_column_width=False, width=600)
 
-# (B) Mostrar Forecast
-st.subheader(f"Proyección: {serie_sel}")
+# (B) Forecast
+st.subheader(f"📊 Proyección de {serie_sel}")
 csv_name = serie_sel.replace(" ", "_") + ".csv"
 csv_path = os.path.join(FORECAST_DIR, csv_name)
 
 if os.path.exists(csv_path):
-    # 1) Saltar la fila 0 (serie), 2) leer sólo las dos primeras columnas, 3) nombrarlas
-    df_fore = pd.read_csv(
+    # Leer 3 columnas: fecha / histórico / proyección
+    df = pd.read_csv(
         csv_path,
         header=None,
         skiprows=1,
-        usecols=[0, 1],
-        names=["fecha", "precio"],
-        encoding="utf-8"
+        usecols=[0, 1, 2],
+        names=["fecha", "historico", "proyeccion"]
     )
-    # Parsear y indexar
-    df_fore["fecha"] = pd.to_datetime(df_fore["fecha"], errors="coerce")
-    df_fore["precio"] = pd.to_numeric(df_fore["precio"], errors="coerce")
-    df_fore = df_fore.dropna(subset=["fecha"]) \
-                     .set_index("fecha") \
-                     .sort_index()
+    df["fecha"]      = pd.to_datetime(df["fecha"], errors="coerce")
+    df["historico"]  = pd.to_numeric(df["historico"], errors="coerce")
+    df["proyeccion"] = pd.to_numeric(df["proyeccion"], errors="coerce")
+    df = df.dropna(subset=["fecha"]).set_index("fecha").sort_index()
+    
+    # Si el usuario no seleccionó rango, lo definimos completo
+    if not date_range or len(date_range) != 2:
+        start, end = df.index.min(), df.index.max()
+    else:
+        start, end = date_range
+    df = df.loc[start:end]
+    
+    # Métricas clave
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Último Histórico", f"{df['historico'].iloc[-1]:,.2f}")
+    col2.metric("Primer Proyección", f"{df['proyeccion'].iloc[0]:,.2f}")
+    cambio = df['proyeccion'].iloc[-1] - df['historico'].iloc[-1]
+    col3.metric("Cambio Proyectado", f"{cambio:,.2f}")
 
-    # Graficar
-    fig = px.line(
-        df_fore,
-        y="precio",
-        labels={"fecha": "Fecha", "precio": "Valor"},
-        title=f"Forecast de {serie_sel}"
+    # Chart comparativo
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=df.index, y=df["historico"],
+        mode="lines", name="Histórico"
+    ))
+    fig.add_trace(go.Scatter(
+        x=df.index, y=df["proyeccion"],
+        mode="lines", name="Proyección"
+    ))
+    fig.update_layout(
+        title=f"Histórico vs Proyección ({start.date()} – {end.date()})",
+        xaxis_title="Fecha",
+        yaxis_title="Precio",
+        legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
     )
     st.plotly_chart(fig, use_container_width=True)
 
+    # Botón para descargar datos filtrados
+    csv_download = df.reset_index().to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📥 Descargar CSV",
+        data=csv_download,
+        file_name=f"{serie_sel}_forecast_{start.date()}_{end.date()}.csv",
+        mime="text/csv"
+    )
 else:
-    st.warning(f"No se encontró el archivo de forecast:\n`{csv_path}`")
+    st.warning(f"No se encontró el archivo:\n`{csv_path}`")
 
-# (C) Parámetros del Modelo
-st.subheader("Parámetros del Modelo Seleccionado")
-st.json(modelo_info)
+# (C) Detalles del modelo
+with st.expander("🛠 Detalles del Modelo Seleccionado"):
+    st.json(modelo_info)
+
+# (D) Sugerencia de mejoras adicionales
+st.markdown("""
+**Ideas para enriquecer aún más el dashboard**  
+- Filtrar IRF por variables macroeconómicas asociadas al modelo (si `modelo_info` incluye dicha lista).  
+- Mostrar estadísticas de bondad de ajuste (RMSE, MAE, MAPE) en un panel de KPIs.  
+- Agregar un selector para superponer varias series de forecast y compararlas.  
+- Incluir un mapa o gráfico de barras si tus datos cubren varias regiones o productos.  
+- Añadir alertas automáticas si la proyección supera ciertos umbrales (por ejemplo, `st.toast` o un badge).  
+""")
