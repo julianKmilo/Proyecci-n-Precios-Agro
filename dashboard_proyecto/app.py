@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import json, os
+import plotly.express as px
 
 # ── RUTAS ───────────────────────────────────────────────────────────────────────
 BASE_DIR      = os.path.dirname(__file__)
@@ -16,52 +17,59 @@ def load_model_dict(path):
         return json.load(f)
 
 dict_modelos = load_model_dict(JSON_PATH)
-series_list   = list(dict_modelos.keys())
+series_list  = list(dict_modelos.keys())
 
-# ── INTERFAZ ────────────────────────────────────────────────────────────────────
+# ── CONFIGURACIÓN PÁGINA ───────────────────────────────────────────────────────
 st.set_page_config(page_title="Dashboard Proyecto", layout="wide")
 st.title("📈 Dashboard de Series Agropecuarias")
 
-# Sidebar: selección de serie/modelo y de función impulso-respuesta
+# ── SIDEBAR ────────────────────────────────────────────────────────────────────
 st.sidebar.header("Controles")
-
-# 1) Serie & Modelo
-serie_sel = st.sidebar.selectbox(
-    "Selecciona serie (Forecast + Modelo):",
-    series_list
-)
+serie_sel   = st.sidebar.selectbox("Selecciona serie (Forecast + Modelo):", series_list)
 modelo_info = dict_modelos[serie_sel]
-
-# 2) IRF
-irf_files = [f for f in os.listdir(IRF_DIR) if f.lower().endswith((".png",".jpg"))]
-irf_sel   = st.sidebar.selectbox("Selecciona IRF:", irf_files)
+irf_files   = sorted([f for f in os.listdir(IRF_DIR) if f.lower().endswith((".png", ".jpg"))])
+irf_sel     = st.sidebar.selectbox("Selecciona IRF:", irf_files)
 
 # ── PÁGINA PRINCIPAL ────────────────────────────────────────────────────────────
-# Mostrar IRF
+# (A) Mostrar IRF
 st.subheader("Función Impulso-Respuesta")
 irf_path = os.path.join(IRF_DIR, irf_sel)
-st.image(irf_path, caption=irf_sel, use_column_width=True)
+st.image(irf_path, caption=irf_sel, use_column_width=False, width=600)
 
-# Mostrar Forecast
+# (B) Mostrar Forecast
 st.subheader(f"Proyección: {serie_sel}")
-# Construir nombre de CSV a partir de la clave JSON (e.g. 'aceite de palma' → 'aceite_de_palma.csv')
 csv_name = serie_sel.replace(" ", "_") + ".csv"
 csv_path = os.path.join(FORECAST_DIR, csv_name)
 
 if os.path.exists(csv_path):
-    df_fore = pd.read_csv(csv_path, parse_dates=True)
-    # Asume que hay una columna 'fecha' y una de proyección, ajústalas si es necesario
-    df_fore = df_fore.sort_values("fecha").set_index("fecha")
+    # 1) Saltar la fila 0 (serie), 2) leer sólo las dos primeras columnas, 3) nombrarlas
+    df_fore = pd.read_csv(
+        csv_path,
+        header=None,
+        skiprows=1,
+        usecols=[0, 1],
+        names=["fecha", "precio"],
+        encoding="utf-8"
+    )
+    # Parsear y indexar
+    df_fore["fecha"] = pd.to_datetime(df_fore["fecha"], errors="coerce")
+    df_fore["precio"] = pd.to_numeric(df_fore["precio"], errors="coerce")
+    df_fore = df_fore.dropna(subset=["fecha"]) \
+                     .set_index("fecha") \
+                     .sort_index()
+
+    # Graficar
     fig = px.line(
         df_fore,
-        y=df_fore.columns,
-        labels={"value": "Valor", "variable": "Serie"},
+        y="precio",
+        labels={"fecha": "Fecha", "precio": "Valor"},
         title=f"Forecast de {serie_sel}"
     )
     st.plotly_chart(fig, use_container_width=True)
-else:
-    st.warning(f"No se encontró el archivo:\n`{csv_path}`")
 
-# Mostrar detalles del modelo
+else:
+    st.warning(f"No se encontró el archivo de forecast:\n`{csv_path}`")
+
+# (C) Parámetros del Modelo
 st.subheader("Parámetros del Modelo Seleccionado")
 st.json(modelo_info)
