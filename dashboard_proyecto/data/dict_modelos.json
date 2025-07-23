@@ -1,0 +1,67 @@
+{
+    "aceite de palma": {
+        "serie": "aceite de palma",
+        "modelo": "Elman",
+        "window_size": 24,
+        "units": 32.0,
+        "learning_rate": 0.001,
+        "rmse": 0.04451381599319586,
+        "mae": 0.03772151470184326,
+        "mape (%)": 11.86115550994873,
+        "conv_filters": NaN,
+        "gru_units": NaN,
+        "n_hidden": NaN
+    },
+    "carne de res, bota": {
+        "serie": "carne de res, bota",
+        "modelo": "Elman",
+        "window_size": 24,
+        "units": 16.0,
+        "learning_rate": 0.001,
+        "rmse": 0.019943541573361027,
+        "mae": 0.015570496208965778,
+        "mape (%)": 1.3257842063903809,
+        "conv_filters": NaN,
+        "gru_units": NaN,
+        "n_hidden": NaN
+    },
+    "granadilla": {
+        "serie": "granadilla",
+        "modelo": "Elman",
+        "window_size": 6,
+        "units": 32.0,
+        "learning_rate": 0.001,
+        "rmse": 0.22398867050485408,
+        "mae": 0.18151092529296875,
+        "mape (%)": 17.881458282470703,
+        "conv_filters": NaN,
+        "gru_units": NaN,
+        "n_hidden": NaN
+    },
+    "mojarra lora entera fresca": {
+        "serie": "mojarra lora entera fresca",
+        "modelo": "Elman",
+        "window_size": 24,
+        "units": 16.0,
+        "learning_rate": 0.001,
+        "rmse": 0.0965132726027843,
+        "mae": 0.0732613280415535,
+        "mape (%)": 5.694034576416016,
+        "conv_filters": NaN,
+        "gru_units": NaN,
+        "n_hidden": NaN
+    },
+    "pollo entero fresco sin vísceras": {
+        "serie": "pollo entero fresco sin vísceras",
+        "modelo": "Elman",
+        "window_size": 24,
+        "units": 16.0,
+        "learning_rate": 0.001,
+        "rmse": 0.06119135134901792,
+        "mae": 0.049147289246320724,
+        "mape (%)": 3.471109390258789,
+        "conv_filters": NaN,
+        "gru_units": NaN,
+        "n_hidden": NaN
+    }
+}
